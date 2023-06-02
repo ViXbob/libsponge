@@ -68,6 +68,7 @@ size_t ByteStream::buffer_size() const { return s.size(); }
 
 bool ByteStream::buffer_empty() const { return s.size() == 0; }
 
+// when the size of s is 0 and there is no more data can be input, then we enter the state of EOF
 bool ByteStream::eof() const { return input_end && s.size() == 0; }
 
 size_t ByteStream::bytes_written() const { return writeBytes; }
