@@ -29,7 +29,7 @@ int main() {
 
         const uint64_t big_offset = (uint64_t{1} << 31) - 1;
 
-        for (unsigned int i = 0; i < 1000000; i++) {
+        for (unsigned int i = 0; i < 10000000; i++) {
             const WrappingInt32 isn{dist32(rd)};
             const uint64_t val{dist63(rd)};
             const uint64_t offset{dist31minus1(rd)};

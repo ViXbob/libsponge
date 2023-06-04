@@ -21,6 +21,8 @@ int main() {
             TCPReceiverTestHarness test{4000};
             test.execute(SegmentArrives{}.with_syn().with_seqno(0).with_result(SegmentArrives::Result::OK));
             test.execute(SegmentArrives{}.with_seqno(1).with_data("abcd").with_result(SegmentArrives::Result::OK));
+            test.execute(ExpectTotalAssembledBytes{4});
+			test.execute(ExpectWindow{3996});
             test.execute(ExpectAckno{WrappingInt32{5}});
             test.execute(ExpectBytes{"abcd"});
             test.execute(ExpectUnassembledBytes{0});

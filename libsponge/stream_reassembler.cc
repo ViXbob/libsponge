@@ -90,8 +90,11 @@ size_t StreamReassembler::unassembled_bytes() const {
 	}
 	// calculating the overlap bytes. And there have no subset relationship.
 	size_t overlapBytes = 0;
+	if (_map.size() == 1) {
+		return len;
+	}
 	for (auto ptr = _map.begin(); ptr != _map.end();) {
-		for (auto itr = ptr++; itr != _map.end(); itr++) {
+		for (auto itr = ++ptr; itr != _map.end(); itr++) {
 			if(ptr->first < itr->first && ptr->first + ptr->second.size() > itr->first && ptr->first + ptr->second.size() < itr->first + itr->second.size())  {
 				overlapBytes += ptr->first + ptr->second.size() - itr->first;
 			} else if (ptr->first < itr->first && ptr->first + ptr->second.size() > itr->first + itr->second.size()) {

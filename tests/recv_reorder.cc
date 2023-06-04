@@ -27,6 +27,7 @@ int main() {
                 SegmentArrives{}.with_seqno(isn + 10).with_data("abcd").with_result(SegmentArrives::Result::OK));
             test.execute(ExpectAckno{WrappingInt32{isn + 1}});
             test.execute(ExpectBytes{""});
+            test.execute(ExpectTotalAssembledBytes{0});
             test.execute(ExpectUnassembledBytes{4});
             test.execute(ExpectTotalAssembledBytes{0});
         }
