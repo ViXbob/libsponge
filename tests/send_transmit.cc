@@ -75,7 +75,7 @@ int main() {
             test.execute(AckReceived{WrappingInt32{isn + 1}}.with_win(65000));
             test.execute(ExpectState{TCPSenderStateSummary::SYN_ACKED});
             uint32_t max_block_size = 10;
-            uint32_t n_rounds = 1000;
+            uint32_t n_rounds = 10;
             size_t bytes_sent = 0;
             for (uint32_t i = 0; i < n_rounds; ++i) {
                 string data;

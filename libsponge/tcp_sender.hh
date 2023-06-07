@@ -8,13 +8,15 @@
 
 #include <functional>
 #include <queue>
+#include <map>
+#include <iostream>
 
 //! \brief The "sender" part of a TCP implementation.
 
 //! Accepts a ByteStream, divides it up into segments and sends the
 //! segments, keeps track of which segments are still in-flight,
-//! maintains the Retransmission Timer, and retransmits in-flight
-//! segments if the retransmission timer expires.
+//! maintains the Retransmission Timer, and retransmits in-flight //! segments if the retransmission timer expires.
+
 class TCPSender {
   private:
     //! our initial sequence number, the number for our SYN.
@@ -22,15 +24,22 @@ class TCPSender {
 
     //! outbound queue of segments that the TCPSender wants sent
     std::queue<TCPSegment> _segments_out{};
+	std::map<uint32_t, TCPSegment> _segments_map{};
 
     //! retransmission timer for the connection
     unsigned int _initial_retransmission_timeout;
+	unsigned int _rto;
 
     //! outgoing stream of bytes that have not yet been sent
     ByteStream _stream;
 
     //! the (absolute) sequence number for the next byte to be sent
     uint64_t _next_seqno{0};
+
+	uint16_t _window_size;
+	uint16_t _retransmission_counter;
+	WrappingInt32 _ackno;
+	bool _zero_window{false};
 
   public:
     //! Initialize a TCPSender
