@@ -18,7 +18,12 @@ void TCPReceiver::segment_received(const TCPSegment &seg) {
 		isn = header.seqno;
 		ack = isn;
 		flag = true;
-	} 
+	}  else {
+		//invalid segment, we directly throw it.
+		if (isn >= seg.header().seqno) {
+			return;
+		}
+	}
 	// if ack equals header.seqno, then seg is going to be written.
 	if (flag) {
 		bool eof = false;

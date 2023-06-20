@@ -103,6 +103,9 @@ void TCPSender::fill_window() {
 //! \param ackno The remote receiver's ackno (acknowledgment number)
 //! \param window_size The remote receiver's advertised window size
 void TCPSender::ack_received(const WrappingInt32 ackno, const uint16_t window_size) { 
+	if (_next_seqno && ackno - wrap(_next_seqno, _isn) > 0) {
+		return;
+	}
 	//TCPConfig::default_capacity == 64000, so uint16_t is enough to store the window size.
 	DUMMY_CODE(ackno, window_size); 
 	_window_size = (window_size > 0 ? window_size : 1);
