@@ -130,6 +130,9 @@ void TCPSender::ack_received(const WrappingInt32 ackno, const uint16_t window_si
 		_rto = _initial_retransmission_timeout;
 		_retransmission_counter = 0;
 	}
+	if (_next_seqno != 0) {
+		fill_window();
+	}
 }
 
 //! \param[in] ms_since_last_tick the number of milliseconds since the last call to this method
@@ -144,8 +147,7 @@ void TCPSender::tick(const size_t ms_since_last_tick) {
 				return;
 			}
 			_retransmission_counter += 1;
-			_rto = _initial_retransmission_timeout;
-			for (int i = 0; i < _retransmission_counter; i++) {
+			_rto = _initial_retransmission_timeout; for (int i = 0; i < _retransmission_counter; i++) {
 				_rto *= 2;
 			}
 		}

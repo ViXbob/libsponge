@@ -109,7 +109,6 @@ void TCPConnection::end_input_stream() {
 	// send a segment with fin.
 	_sender.fill_window();
 	send_segment();
-	_sender.stream_in().end_input();
 }
 
 void TCPConnection::connect() {
@@ -166,7 +165,6 @@ TCPConnection::~TCPConnection() {
             cerr << "Warning: Unclean shutdown of TCPConnection\n";
 
             // Your code here: need to send a RST segment to the peer
-			_sender.send_empty_segment();
 			unclean_shutdown(true);
         }
     } catch (const exception &e) {
