@@ -23,6 +23,7 @@ class TCPReceiver {
 	WrappingInt32 isn; // keep track of the ISN
 	bool flag; // isn has been set or not.
 	WrappingInt32 finSeqno;
+	bool finWritten; // fin flag has been written or not.
 	WrappingInt32 ack; // the next wanted sequence number.
 	
 
@@ -31,7 +32,7 @@ class TCPReceiver {
     //!
     //! \param capacity the maximum number of bytes that the receiver will
     //!                 store in its buffers at any give time.
-    TCPReceiver(const size_t capacity) : _reassembler(capacity), _capacity(capacity), isn(0), flag(false), finSeqno(0),  ack(0) {}
+    TCPReceiver(const size_t capacity) : _reassembler(capacity), _capacity(capacity), isn(0), flag(false), finSeqno(0), finWritten(false), ack(0) {}
 
     //! \name Accessors to provide feedback to the remote TCPSender
     //!@{

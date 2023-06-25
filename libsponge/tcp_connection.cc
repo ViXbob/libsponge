@@ -28,12 +28,11 @@ size_t TCPConnection::time_since_last_segment_received() const { return _time_si
 
 void TCPConnection::segment_received(const TCPSegment &seg) {
 	DUMMY_CODE(seg);
+	if (!active()) { return ;}
 	_time_since_last_segment_received = 0;
 	if (seg.header().rst) {
-		_receiver.stream_out().set_error();
-		_sender.stream_in().set_error();
-		// how to kill the connection permanently
-		_linger_after_streams_finish = false;
+		//false indicates we receive a rst segment.
+		unclean_shutdown(false);
 		return;
 	}
 	if (seg.header().ack) {
@@ -41,15 +40,20 @@ void TCPConnection::segment_received(const TCPSegment &seg) {
 	}
 	// If we receive a segment with fin, then we end the receiver.
 	if (seg.header().fin) {
+		_receiver.stream_out().end_input();
 		// if inbound stream ends before the TCPCONNECTION has reached EOF on its outbound stream, set _linger_after_stream to false
 		if (!_sender.stream_in().eof()) {
 			_linger_after_streams_finish = false;
 		}
-		_receiver.stream_out().end_input();
 	}
 	_receiver.segment_received(seg);
 	// if incoming segment occupied any sequence number, even tcp_sender has no segments out, we have to send a segment to update ackno and window size.
 	if (seg.length_in_sequence_space() >= 1) {
+		_sender.fill_window();
+		if (!_sender.segments_out().empty()) {
+			write("");
+			return;
+		}
 		auto ackOptional = _receiver.ackno();
 		size_t window_size = _receiver.window_size();
 		TCPSegment segment;
@@ -59,14 +63,14 @@ void TCPConnection::segment_received(const TCPSegment &seg) {
 		}
 		segment.header().win = window_size;
 		_segments_out.push(segment);
-	}
+	} 
 } 
 bool TCPConnection::active() const { 
-	if (_sender.stream_in().eof() && !_sender.bytes_in_flight() && _receiver.stream_out().eof()) 
-		if (!_linger_after_streams_finish) {
-			return false;
-		}
-	if (time_since_last_segment_received() >= 10 * _cfg.rt_timeout) {
+	//uncleanly shutdown.
+	if (_receive_or_send_rst) {
+		return false;
+	}
+	if (_clean_shutdown) {
 		return false;
 	}
 	return true;
@@ -76,51 +80,26 @@ size_t TCPConnection::write(const string &data) {
     DUMMY_CODE(data);
 	ByteStream b = _sender.stream_in();
 	size_t ret = b.write(data);
+	_sender.stream_in() = b;
 	_sender.fill_window();
-	auto ackOptional = _receiver.ackno();
-	size_t window_size = _receiver.window_size();
-	while(!_sender.segments_out().empty()) {
-		TCPSegment segment = _sender.segments_out().front();
-		_sender.segments_out().pop();
-		segment.header().win = window_size;
-		if (ackOptional.has_value()) {
-			segment.header().ackno = ackOptional.value();
-			segment.header().ack = true;
-		}
-		_segments_out.push(segment);
-	}
+	send_segment();
     return ret;
 }
 
 //! \param[in] ms_since_last_tick number of milliseconds since the last call to this method
 void TCPConnection::tick(const size_t ms_since_last_tick) { 
 	DUMMY_CODE(ms_since_last_tick); 
+	if (!active()) { return ; }
 	_time_since_last_segment_received += ms_since_last_tick;
 	_sender.tick(ms_since_last_tick);
-	//here we maybe write a segment into _sender.segments_out, we need to push it into the tcpconnection's segments queue
-	if (!_sender.segments_out().empty()) {
-		TCPSegment tick_segment = _sender.segments_out().front();
-		_sender.segments_out().pop();
-		size_t window_size = _receiver.window_size();
-		tick_segment.header().win = window_size;
-		auto ackOptional = _receiver.ackno();
-		if (ackOptional.has_value()) {
-			tick_segment.header().ackno = ackOptional.value();
-			tick_segment.header().ack = true;
-		}
-		_segments_out.push(tick_segment);
-	}
     //if transmissions is larger than MAX_RETX_ATTEMPTS, then send a reset segment to the peer.
 	if (_sender.consecutive_retransmissions() > TCPConfig::MAX_RETX_ATTEMPTS) {
-		_sender.stream_in().set_error();
-		_receiver.stream_out().set_error();
-		_sender.segments_out().pop();
-		_sender.send_empty_segment();
-		TCPSegment empty_segment = _sender.segments_out().front();
-		_sender.segments_out().pop();
-		empty_segment.header().rst = true;
-		_segments_out.push(empty_segment);
+		unclean_shutdown(true);
     }
+	//here we maybe write a segment into _sender.segments_out, we need to push it into the tcpconnection's segments queue
+	send_segment();
+	// end the connection cleanly if necessary.
+	clean_shutdown();
 }
 
 //shutdown the outbound byte stream.
@@ -129,14 +108,7 @@ void TCPConnection::end_input_stream() {
 	_sender.stream_in().end_input();
 	// send a segment with fin.
 	_sender.fill_window();
-	TCPSegment finSegment = _sender.segments_out().front();
-	_sender.segments_out().pop();
-	auto ackOptional = _receiver.ackno();
-	if (ackOptional.has_value()) {
-		finSegment.header().ackno = ackOptional.value();
-		finSegment.header().ack = true;
-	}
-	_segments_out.push(finSegment);
+	send_segment();
 	_sender.stream_in().end_input();
 }
 
@@ -145,11 +117,49 @@ void TCPConnection::connect() {
 	if (_sender.segments_out().size() != 1) {
 		throw "segments size must equal 1";
 	}
-	TCPSegment firstSegment = _sender.segments_out().front();
-	_sender.segments_out().pop();
-	_segments_out.push(firstSegment);
+	send_segment();
 }
 
+void TCPConnection::clean_shutdown() {
+	if (_sender.stream_in().eof() && !_sender.bytes_in_flight() && _receiver.stream_out().eof()) {
+		if (!_linger_after_streams_finish) {
+			_clean_shutdown = true;
+		}
+		if (time_since_last_segment_received() >= (_cfg.rt_timeout * 10)) {
+			_clean_shutdown = true;
+		}
+	}
+}
+
+void TCPConnection::unclean_shutdown(bool send) {
+		_sender.stream_in().set_error();
+		_receiver.stream_out().set_error();
+		if (send) {
+			_sender.send_empty_segment();
+			TCPSegment empty_segment = _sender.segments_out().front();
+			_sender.segments_out().pop();
+			empty_segment.header().rst = true;
+			_receive_or_send_rst = true;
+			_segments_out.push(empty_segment);
+		}
+		_receive_or_send_rst = true;
+}
+void TCPConnection::send_segment() {
+	if (!active()) { return ; }
+	while (!_sender.segments_out().empty()) {
+		TCPSegment segment = _sender.segments_out().front();
+		_sender.segments_out().pop();
+		size_t window_size = _receiver.window_size();
+		segment.header().win = window_size;
+		auto ackOptional = _receiver.ackno();
+		if (ackOptional.has_value()) {
+			segment.header().ackno = ackOptional.value();
+			segment.header().ack = true;
+		}
+		_segments_out.push(segment);
+	}
+	clean_shutdown();
+}
 TCPConnection::~TCPConnection() {
     try {
         if (active()) {
@@ -157,10 +167,7 @@ TCPConnection::~TCPConnection() {
 
             // Your code here: need to send a RST segment to the peer
 			_sender.send_empty_segment();
-			TCPSegment rstSegment = _sender.segments_out().front();
-			_sender.segments_out().pop();
-			rstSegment.header().rst = true;
-			_segments_out.push(rstSegment);
+			unclean_shutdown(true);
         }
     } catch (const exception &e) {
         std::cerr << "Exception destructing TCP FSM: " << e.what() << std::endl;

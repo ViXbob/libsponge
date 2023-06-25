@@ -17,7 +17,7 @@ class StreamReassembler {
     size_t _capacity;    //!< The maximum number of bytes
 	  std::map<size_t, std::string> _map;
 	  size_t _index; // index of last byte in the byteStream.
-	  int end_index; // indicates the index of last byte.
+	  int end_index; // indicates the index of last byte of fin segment.
 
   public:
     //! \brief Construct a `StreamReassembler` that will store up to `capacity` bytes.

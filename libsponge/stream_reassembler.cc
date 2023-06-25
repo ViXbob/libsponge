@@ -24,9 +24,7 @@ void StreamReassembler::push_substring(const string &data, const size_t index, c
 		end_index = index + data.size();
 	}
 	if (_index >= index && data.size() + index >_index) {
-		//if equal, then no write will happen, so return ASAP.
 		size_t len;
-		// to be rethink.
 		len = _output.write(data.substr(_index - index, data.size() - _index + index ));
 		_index += len;
 		while(true) {

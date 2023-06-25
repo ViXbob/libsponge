@@ -10,6 +10,14 @@ void DUMMY_CODE(Targs &&... /* unused */) {}
 
 using namespace std;
 
+/* 
+	Function: received a TCPSegment, and push it into _reassembler.
+	Note:
+		1. if segment is invalid, we directly throw it.
+		2. fin and syn maybe come together or not.
+		3. we may receive 2nd FIN segment.
+		4. we may receive a segment out of window.
+*/
 void TCPReceiver::segment_received(const TCPSegment &seg) {
 	TCPHeader header = seg.header();
 	Buffer payload = seg.payload();
@@ -20,17 +28,20 @@ void TCPReceiver::segment_received(const TCPSegment &seg) {
 		flag = true;
 	}  else {
 		//invalid segment, we directly throw it.
-		if (isn >= seg.header().seqno) {
+		//case1: seqno is smaller than isn
+		//case2: seqno plus data.size is smaller than ack
+		//case3: seqno is out of window.
+		//note case1 and case2 is not duplicated.
+		if (seg.header().seqno - isn <= 0 || seg.header().seqno + data.size() - ack < 0 || static_cast<int32_t>(window_size()) <= (seg.header().seqno - ack)) {
 			return;
 		}
 	}
-	// if ack equals header.seqno, then seg is going to be written.
 	if (flag) {
 		bool eof = false;
 		if (header.fin) { eof = true; finSeqno = header.seqno; }
-		// There is a subtle problem in checkpoint.
 		uint64_t checkpoint = static_cast<uint64_t>(_reassembler.stream_out().bytes_written()) + unassembled_bytes();
-		// if header.seq equal isn, then fin and syn come together.
+		// if header.seq equal isn, then it is the first segment.
+		// else, syn has been sent, so we have to minus 1.
 		uint64_t index;
 		if (header.seqno == isn) {
 			index = 0;
@@ -42,13 +53,14 @@ void TCPReceiver::segment_received(const TCPSegment &seg) {
 		_reassembler.push_substring(data, index, eof);
 		uint64_t written2 = _reassembler.stream_out().bytes_written();
 		//If ack equals header.seqno, the segment has been written.
-		if (ack == header.seqno) {
-			ack = ack + written2 - written1 + (header.syn ? 1 : 0);
-		}
-		// If fin has been set and fin segment has been written.
+		ack = ack + written2 - written1 + (header.syn ? 1 : 0);
+
+		// we can't let the follwing code execute twice, because we may receive 2nd FIN segment, then the number of ack will be wrong.
 		WrappingInt32 zero(0);
-		if (finSeqno != zero && ack >= finSeqno) {
+		// If fin has been set and fin segment has been written.
+		if (!finWritten && finSeqno != zero && ack >= finSeqno) {
 			ack = ack + 1;
+			finWritten = true;
 		}
 	}
     DUMMY_CODE(seg);

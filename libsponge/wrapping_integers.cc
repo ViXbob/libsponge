@@ -30,8 +30,7 @@ WrappingInt32 wrap(uint64_t n, WrappingInt32 isn) {
 //! has a different ISN.
 uint64_t unwrap(WrappingInt32 n, WrappingInt32 isn, uint64_t checkpoint) {
     DUMMY_CODE(n, isn, checkpoint);
-	uint32_t offset = static_cast<uint64_t>(static_cast<uint32_t>
-			(n >= isn ? n - isn : n - isn + (1ul << 32)));
+	uint64_t offset = static_cast<uint64_t>(static_cast<uint32_t>(n >= isn ? n - isn : n - isn + (1ul << 32)));
 	uint64_t value1 = 0;
 	if (offset < (1ul << 31)) {
 		uint64_t val = checkpoint - checkpoint % (1ll << 32);
