@@ -70,6 +70,7 @@ void TCPSender::fill_window() {
 				if (_next_seqno == stream_in().bytes_written() + 1) {
 					header.fin = true;
 					s = "";
+					_fin_sent = true;
 					//set the remaining size to 1 + string length, so we can end the loop after this.
 					remaining_size = 1 + s.size();
 				} 
@@ -158,6 +159,10 @@ void TCPSender::tick(const size_t ms_since_last_tick) {
 
 unsigned int TCPSender::consecutive_retransmissions() const {
 	return _retransmission_counter;
+}
+
+bool TCPSender::fin_sent() {
+	return _fin_sent;
 }
 
 void TCPSender::send_empty_segment() {

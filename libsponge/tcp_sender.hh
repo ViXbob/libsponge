@@ -40,6 +40,7 @@ class TCPSender {
 	uint16_t _retransmission_counter;
 	WrappingInt32 _ackno;
 	bool _zero_window{false};
+	bool _fin_sent{false};
 
   public:
     //! Initialize a TCPSender
@@ -92,6 +93,7 @@ class TCPSender {
 
     //! \brief absolute seqno for the next byte to be sent
     uint64_t next_seqno_absolute() const { return _next_seqno; }
+	bool fin_sent();
 
     //! \brief relative seqno for the next byte to be sent
     WrappingInt32 next_seqno() const { return wrap(_next_seqno, _isn); }

@@ -120,13 +120,21 @@ void TCPConnection::connect() {
 }
 
 void TCPConnection::clean_shutdown() {
-	if (_sender.stream_in().eof() && !_sender.bytes_in_flight() && _receiver.stream_out().eof()) {
-		if (!_linger_after_streams_finish) {
-			_clean_shutdown = true;
-		}
-		if (time_since_last_segment_received() >= (_cfg.rt_timeout * 10)) {
-			_clean_shutdown = true;
-		}
+	// prerequest 1
+	if (!_receiver.stream_out().input_ended() || unassembled_bytes()) 		return;
+	// prerequest 2
+	if (!_sender.stream_in().eof() || !_sender.fin_sent()) {
+		return;
+	}
+	// prerequest 3
+	if (_sender.bytes_in_flight()) {
+		return;
+	}
+	if (!_linger_after_streams_finish) {
+		_clean_shutdown = true;
+	}
+	if (time_since_last_segment_received() >= (_cfg.rt_timeout * 10)) {
+		_clean_shutdown = true;
 	}
 }
 
