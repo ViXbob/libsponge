@@ -23,9 +23,14 @@ void StreamReassembler::push_substring(const string &data, const size_t index, c
 	if (eof) {
 		end_index = index + data.size();
 	}
+	// we will ignore the substring which cause streamReassembler to exceed its capacity.
+	string subdata = data;
+	if (index + data.size() - _output.bytes_read() > _capacity) {
+		subdata = data.substr(0, _output.bytes_read() + _capacity - index);
+	}
 	if (_index >= index && data.size() + index >_index) {
 		size_t len;
-		len = _output.write(data.substr(_index - index, data.size() - _index + index ));
+		len = _output.write(subdata.substr(_index - index, subdata.size() - _index + index ));
 		_index += len;
 		while(true) {
 			if (_map.empty()) {
@@ -46,19 +51,19 @@ void StreamReassembler::push_substring(const string &data, const size_t index, c
 		}
 	} else {
 		// we should add the data into map or not.
-		if (data.size() > 0) {
+		if (subdata.size() > 0) {
 			if (_map.empty()) {
-				_map[index] = data;
+				_map[index] = subdata;
 			} else {
 				bool put = true;
 				// In _map, we don't want the subset relationship exists.
 				for (auto ptr = _map.begin(); ptr != _map.end();) {
 					// if the data is the subset of ptr->second, we don't include it
-					if (ptr->first <= index && index + data.size() <= ptr->first + ptr->second.size()) {
+					if (ptr->first <= index && index + subdata.size() <= ptr->first + ptr->second.size()) {
 						put = false;
 					}
 					// if the ptr->second is the subset, we erase it.
-					if (index <= ptr->first && ptr->first + ptr->second.size() <= index + data.size()) {
+					if (index <= ptr->first && ptr->first + ptr->second.size() <= index + subdata.size()) {
 						auto nextPtr = _map.erase(ptr);
 						if (nextPtr == _map.end()) {
 							break;
@@ -70,7 +75,7 @@ void StreamReassembler::push_substring(const string &data, const size_t index, c
 					}
 				}
 				if (put) {
-					_map[index] = data;
+					_map[index] = subdata;
 				}
 			}
 		}

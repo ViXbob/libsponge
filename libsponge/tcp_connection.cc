@@ -41,7 +41,7 @@ void TCPConnection::segment_received(const TCPSegment &seg) {
 	// If we receive a segment with fin, then we end the receiver.
 	if (seg.header().fin) {
 		_receiver.stream_out().end_input();
-		// if inbound stream ends before the TCPCONNECTION has reached EOF on its outbound stream, set _linger_after_stream to false
+		// if the sender is already in the eof state, then it is a active close, instead it is a passive close.
 		if (!_sender.stream_in().eof()) {
 			_linger_after_streams_finish = false;
 		}
@@ -130,17 +130,17 @@ void TCPConnection::clean_shutdown() {
 	if (_sender.bytes_in_flight()) {
 		return;
 	}
+	// passive close
 	if (!_linger_after_streams_finish) {
 		_clean_shutdown = true;
 	}
+	// active close.
 	if (time_since_last_segment_received() >= (_cfg.rt_timeout * 10)) {
 		_clean_shutdown = true;
 	}
 }
 
 void TCPConnection::unclean_shutdown(bool send) {
-		_sender.stream_in().set_error();
-		_receiver.stream_out().set_error();
 		if (send) {
 			_sender.send_empty_segment();
 			TCPSegment empty_segment = _sender.segments_out().front();
@@ -150,6 +150,8 @@ void TCPConnection::unclean_shutdown(bool send) {
 			_segments_out.push(empty_segment);
 		}
 		_receive_or_send_rst = true;
+		_sender.stream_in().set_error();
+		_receiver.stream_out().set_error();
 }
 void TCPConnection::send_segment() {
 	if (!active()) { return ; }

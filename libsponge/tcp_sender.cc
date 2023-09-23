@@ -41,11 +41,7 @@ void TCPSender::fill_window() {
 	//determine the current size of TCPSegment queue;
 	// should we need to send TCPSegment with SYN or FIN flag.
 	uint64_t remaining_size;
-	if (_ackno + _window_size - (_isn + _next_seqno) >= 0) {
-		remaining_size = _ackno + _window_size - (_isn + _next_seqno);
-	} else {
-		remaining_size = 0;
-	}
+	remaining_size = max(0, _ackno + _window_size - (_isn + _next_seqno));
 	// State of stream started but nothing acknowledged
 	if (_next_seqno > 0 && _next_seqno == bytes_in_flight()) {
 		return;
@@ -104,13 +100,17 @@ void TCPSender::fill_window() {
 //! \param ackno The remote receiver's ackno (acknowledgment number)
 //! \param window_size The remote receiver's advertised window size
 void TCPSender::ack_received(const WrappingInt32 ackno, const uint16_t window_size) { 
+	// if we receive a ackno which is smaller than _ackno
+	if (_ackno - ackno > 0) {
+		return;
+	}
 	if (_next_seqno && ackno - wrap(_next_seqno, _isn) > 0) {
 		return;
 	}
 	//TCPConfig::default_capacity == 64000, so uint16_t is enough to store the window size.
 	DUMMY_CODE(ackno, window_size); 
-	_window_size = (window_size > 0 ? window_size : 1);
 	_zero_window = (window_size == 0 ? true : false);
+	_window_size = (window_size > 0 ? window_size : 1);
 	_ackno = ackno;
 	// if ackno is bigger than the segment's seqno, remove that segment.
 	uint32_t size = _segments_map.size();

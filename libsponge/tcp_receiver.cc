@@ -22,6 +22,10 @@ void TCPReceiver::segment_received(const TCPSegment &seg) {
 	TCPHeader header = seg.header();
 	Buffer payload = seg.payload();
 	std::string data = std::string(payload.str());
+	// if we receive a second synSegment.
+	if (flag && header.syn) {
+		return;
+	}
 	if (header.syn) {
 		isn = header.seqno;
 		ack = isn;
@@ -32,6 +36,7 @@ void TCPReceiver::segment_received(const TCPSegment &seg) {
 		//case2: seqno plus data.size is smaller than ack
 		//case3: seqno is out of window.
 		//note case1 and case2 is not duplicated.
+		// case2 and case3 are the left edge and right edge.
 		if (seg.header().seqno - isn <= 0 || seg.header().seqno + data.size() - ack < 0 || static_cast<int32_t>(window_size()) <= (seg.header().seqno - ack)) {
 			return;
 		}
